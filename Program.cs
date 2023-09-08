@@ -14,6 +14,9 @@ root.AddArgument(pathArg);
 var searchPatternOption = new Option<string>("--pattern", () => "**", "Search pattern to filter files.");
 root.AddOption(searchPatternOption);
 
+var excludePatternOption = new Option<string[]>("--exclude", "Exclusion pattern to filter files.");
+root.AddOption(excludePatternOption);
+
 var groupingOption = new Option<Grouping>("--grouping", () => Grouping.Extension, "Grouping mode.");
 root.AddOption(groupingOption);
 
@@ -23,11 +26,52 @@ root.AddOption(readBufferSizeOption);
 var threadsOption = new Option<int>("--threads", () => 1, "Number of threads to read files.");
 root.AddOption(threadsOption);
 
+string[] defaultExclusions = new[]
+{
+    ".git",
+    ".vs",
+    ".vscode",
+
+    "**/bin/**",
+    "**/obj/**",
+    "**/node_modules/**",
+    "**.dll",
+    "*.pdb",
+    "**.wasm",
+    "**.bin",
+    "**.obj",
+    "**.so",
+    "**.min.*",
+    "**.map",
+    "**.g.cs",
+
+    "**.cache",
+    "**.sqlite",
+    "**.lock",
+
+    "**.jpg",
+    "**.gif",
+    "**.gifv",
+    "**.png",
+    "**.webm",
+    "**.webp",
+    "**.mp3",
+    "**.avi",
+    "**.mp4",
+    "**.mkv",
+
+    "**.zip",
+    "**.tgz",
+    "**.gz",
+    "**.7z",
+};
+
 root.SetHandler(async context =>
 {
 	// bind parameters
 	var folder = context.BindingContext.ParseResult.GetValueForArgument(pathArg);
 	var searchPattern = context.BindingContext.ParseResult.GetValueForOption(searchPatternOption);
+	var excludePatterns = context.BindingContext.ParseResult.GetValueForOption(excludePatternOption);
 	var grouping = context.BindingContext.ParseResult.GetValueForOption(groupingOption);
 	var readBufferSize = context.BindingContext.ParseResult.GetValueForOption(readBufferSizeOption);
 	var threads = context.BindingContext.ParseResult.GetValueForOption(threadsOption);
@@ -45,8 +89,13 @@ root.SetHandler(async context =>
 	console.WriteLine($"Collecting files...");
 	var matcher = new Matcher();
 	matcher.AddInclude(searchPattern);
-	var results = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(folder)));
-	var files = results.Files.Select(f => f.Path).ToList();
+	matcher.AddExcludePatterns(defaultExclusions);
+	if (excludePatterns != null)
+	{
+		matcher.AddExcludePatterns(excludePatterns);
+	}
+    var results = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(folder)));
+	var files = results.Files.Select(f => Path.Combine(folder, f.Path)).ToList();
 	console.WriteLine($"Total number of files: {files.Count:N0}");
 	var queue = new ConcurrentQueue<string>(files);
 
